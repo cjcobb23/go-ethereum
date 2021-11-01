@@ -31,6 +31,7 @@ import (
 // blockchain during header verification.
 type ChainHeaderReader interface {
 	// Config retrieves the blockchain's chain configuration.
+	// CJ: Put the UNL here?
 	Config() *params.ChainConfig
 
 	// CurrentHeader retrieves the current header from the local chain.
@@ -60,11 +61,15 @@ type Engine interface {
 	// Author retrieves the Ethereum address of the account that minted the given
 	// block, which may be different from the header's coinbase if a consensus
 	// engine is based on signatures.
+	// CJ: I think we can only return an error here. Validators and addresses are
+	// distinct entities in XRPL consensus, so there's no possible address to return
 	Author(header *types.Header) (common.Address, error)
 
 	// VerifyHeader checks whether a header conforms to the consensus rules of a
 	// given engine. Verifying the seal may be done optionally here, or explicitly
 	// via the VerifySeal method.
+	// CJ: Verify that a quorum of UNL validators have validated the header. Can use
+	// chain to check the UNL
 	VerifyHeader(chain ChainHeaderReader, header *types.Header, seal bool) error
 
 	// VerifyHeaders is similar to VerifyHeader, but verifies a batch of headers
@@ -75,10 +80,12 @@ type Engine interface {
 
 	// VerifyUncles verifies that the given block's uncles conform to the consensus
 	// rules of a given engine.
+	// CJ: Shouldn't need this
 	VerifyUncles(chain ChainReader, block *types.Block) error
 
 	// Prepare initializes the consensus fields of a block header according to the
 	// rules of a particular engine. The changes are executed inline.
+	// CJ: preset some fields prior to starting consensus
 	Prepare(chain ChainHeaderReader, header *types.Header) error
 
 	// Finalize runs any post-transaction state modifications (e.g. block rewards)
@@ -94,6 +101,10 @@ type Engine interface {
 	//
 	// Note: The block header and state database might be updated to reflect any
 	// consensus rules that happen at finalization (e.g. block rewards).
+	// CJ: Not sure if we need to do anything here. In rippled, we update the skiplist, and do some
+	// amendment related stuff. We definitely won't do any amendment stuff, and I don't think
+	// we will have a skiplist, since that is unique to the XRPL
+	// CJ: oh, we have to set the final state and tx root and the ledger hash
 	FinalizeAndAssemble(chain ChainHeaderReader, header *types.Header, state *state.StateDB, txs []*types.Transaction,
 		uncles []*types.Header, receipts []*types.Receipt) (*types.Block, error)
 
@@ -102,6 +113,7 @@ type Engine interface {
 	//
 	// Note, the method returns immediately and will send the result async. More
 	// than one result may also be returned depending on the consensus algorithm.
+	// CJ: Begin consensus for a particular block
 	Seal(chain ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error
 
 	// SealHash returns the hash of a block prior to it being sealed.
@@ -109,9 +121,11 @@ type Engine interface {
 
 	// CalcDifficulty is the difficulty adjustment algorithm. It returns the difficulty
 	// that a new block should have.
+	// CJ: this should be some sort of no-op
 	CalcDifficulty(chain ChainHeaderReader, time uint64, parent *types.Header) *big.Int
 
 	// APIs returns the RPC APIs this consensus engine provides.
+	// CJ: this we need to figure out, but is not super urgent
 	APIs(chain ChainHeaderReader) []rpc.API
 
 	// Close terminates any background threads maintained by the consensus engine.

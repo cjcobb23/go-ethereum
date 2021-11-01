@@ -1,149 +1,127 @@
-package main
+package consensus
 
 import (
-	"github.com/ethereum/go-ethereum/consensus"
-	"fmt"
 	"crypto/ecdsa"
+	"crypto/rand"
 	"crypto/sha256"
+	"fmt"
+
+	"github.com/ethereum/go-ethereum/common"
 )
 
-func main() {
-	fmt.Println("vim-go")
-}
-
-var thresholds int[4] {50,65,70,95}
+var thresholds = [4]int{50, 65, 70, 95}
 var timeout int = 1
 var quorum = 80
 
-
-type XRPLConsensus {
-
-	myPubKey ecdsa.PublicKey
+type XRPLConsensus struct {
+	myPubKey  ecdsa.PublicKey
 	myPrivKey ecdsa.PrivateKey
-	unl map[ecdsa.PublicKey]bool
-	
-	props map[ecdsa.PublicKey]Proposal
-	vals map[common.Hash]map[ecdsa.PublicKey]bool
-	lastVals map[ecdsa.PublicKey]common.Hash
-	transactions []common.Hash
-	pendingTransactions []common.Hash
-	prevLedger common.Hash
-	validatedLedger common.Hash
-	maxSeq uint32
-	curRound int
+	unl       map[ecdsa.PublicKey]bool
+
+	props               map[ecdsa.PublicKey]Proposal
+	vals                map[common.Hash]map[ecdsa.PublicKey]bool
+	lastVals            map[ecdsa.PublicKey]common.Hash
+	transactions        map[common.Hash]bool
+	pendingTransactions map[common.Hash]bool
+	prevLedger          common.Hash
+	validatedLedger     common.Hash
+	maxSeq              uint32
+	curRound            int
 }
 
-type Proposal {
-	pubKey ecdsa.PublicKey
-	prevLedger common.hash
+type Proposal struct {
+	pubKey       ecdsa.PublicKey
+	prevLedger   common.Hash
 	transactions map[common.Hash]bool
-	int round
-	sig []byte
+	round        int
+	sig          []byte
 }
 
-type struct Validation {
-
-	pubKey ecdsa.PublicKey
+type Validation struct {
+	pubKey    ecdsa.PublicKey
 	blockHash common.Hash
-	uint32 seq
-	sig []byte
-
+	seq       uint32
+	sig       []byte
 }
 
-func (p Proposal) String() string
-{
-	
+func (p Proposal) String() string {
+
 	return fmt.Sprintf("%v round: %v sig: %v transactions %v",
-		pubKey,round,sig,prevLedger,transactions)
+		p.pubKey, p.round, p.sig, p.prevLedger, p.transactions)
 }
 
 func (v Validation) Sign(priv ecdsa.PrivateKey) error {
 
-	s := fmt.Sprintf("%v %v %v",v.pubKey,v.blockHash,v.seq)
+	s := fmt.Sprintf("%v %v %v", v.pubKey, v.blockHash, v.seq)
 	h := sha256.Sum256([]byte(s))
-	sig, err := ecdsa.SignASN1(rand.Reader,&priv,h[:])
-	if err == nil
-	{
+	sig, err := ecdsa.SignASN1(rand.Reader, &priv, h[:])
+	if err == nil {
 		v.sig = sig
 	}
-    return err
+	return err
 }
 
-func (p Proposal) Sign(priv ecdsa.PrivateKey) error
-{
-	s := fmt.Sprintf("%v %v %v %v",p.pubKey,p.prevLedger,p.transactions,p.round)
+func (p Proposal) Sign(priv ecdsa.PrivateKey) error {
+	s := fmt.Sprintf("%v %v %v %v", p.pubKey, p.prevLedger, p.transactions, p.round)
 
 	h := sha256.Sum256([]byte(s))
-	sig, err := ecdsa.SignASN1(rand.Reader,&priv,h[:])
-	if err == nil
-	{
+	sig, err := ecdsa.SignASN1(rand.Reader, &priv, h[:])
+	if err == nil {
 		p.sig = sig
 	}
-    return err
+	return err
 }
 
-func (c XRPLConsensus*) receive(v Validation) {
+func (c *XRPLConsensus) receiveValidation(v Validation) {
 
-	if _,ok := c.unl[v.pubKey]; ok {
+	if _, ok := c.unl[v.pubKey]; ok {
 
 		c.vals[v.blockHash][v.pubKey] = true
 		c.lastVals[v.pubKey] = v.blockHash
-		if v.seq > maxSeq {
+		if v.seq > c.maxSeq {
 
-			count := 0
-			for p := range vals[v.block] {
-				count++
-			}
-	
-			if count * 100 > len(c.unl) * quorum {
+			count := len(c.vals[v.blockHash])
+
+			if count*100 > len(c.unl)*quorum {
 				c.validatedLedger = v.blockHash
 			}
 		}
 	}
 }
 
-
-func (c XRPLConsensus*) receive(p Proposal)
-{
-	if _,ok := c.unl[p.pubKey]; !ok
-	{
+func (c *XRPLConsensus) receiveProposal(p Proposal) {
+	if _, ok := c.unl[p.pubKey]; !ok {
 		fmt.Println("Ignoring untrusted proposal : ", p)
 		return
 	}
-	if p.prevLedger != c.prevLedger
-	{
+	if p.prevLedger != c.prevLedger {
 		fmt.Println("Ignoring proposal for different ledger : ", p, c.prevLedger)
 		return
 	}
 	oldProp, ok := c.props[p.pubKey]
-	if !ok
-	{
+	if !ok {
 		c.props[p.pubKey] = p
-		fmt.Println("Received initial proposal : ",p)
-		
-	}
-	else if oldProp.round < p.round
-	{
+		fmt.Println("Received initial proposal : ", p)
+
+	} else if oldProp.round < p.round {
 		c.props[p.pubKey] = p
 		fmt.Println("Updating proposal : ", p)
-	}
-	else
-	{
+	} else {
 		fmt.Println("Ignoring old proposal : ", p)
 	}
 }
 
-func (c XRPLConsensus*) start(l common.Hash)
-{
+func (c *XRPLConsensus) start(l common.Hash) {
 	c.prevLedger = l
 	c.curRound = 0
 	c.transactions = c.pendingTransactions
-	c.props = make(map[ecdsa.PublicKey]bool)
+	c.props = make(map[ecdsa.PublicKey]Proposal)
 }
 
-func apply(l common.Hash, txns []common.Hash) (common.Hash, uint32) {
+func apply(l common.Hash, txns map[common.Hash]bool) (common.Hash, uint32) {
 
-	return nil, 0
+	ret := common.Hash{}
+	return ret, 0
 }
 
 func earliestCommonAncestor(blocks []common.Hash) common.Hash {
@@ -160,46 +138,44 @@ func support(block common.Hash) int {
 	return 1
 }
 
-func (c XRPLConsensus*) preferredLedger() {
+/*
+func (c *XRPLConsensus) preferredLedger() {
 
-	blocks := make([]common.Hash)
-	for p,v := range c.lastVals {
+	blocks := make([]common.Hash, 0)
+	for _, v := range c.lastVals {
 
-		blocks = append(blocks,v)
+		blocks = append(blocks, v)
 	}
 	eca := earliestCommonAncestor(blocks)
 	done := false
 
 	children := children(eca)
 	for done := false; !done && len(children) > 0; {
-	
-		sort.Slice(children,func(i, j common.Hash) bool {
-			
-			return support(i) > support(j)
+
+		sort.Slice(children, func(i, j int) bool {
+
+			return support(children[i]) > support(children[j])
 		})
 
-
-		
 	}
 
 }
+*/
 
-func (c XRPLConsensus*) update()
-{
-	if c.prevLedger != preferredLedger() {
+func (c *XRPLConsensus) update() {
+	if c.prevLedger != c.preferredLedger() {
 
-		start(preferredLedger())
-	}
-	else {
-		updatePosition()
-		if checkConsensus() {
+		c.start(c.preferredLedger())
+	} else {
+		c.updatePosition()
+		if c.checkConsensus() {
 
-			newLedger, seq := apply(c.prevLedger,c.transactions)
+			newLedger, seq := apply(c.prevLedger, c.transactions)
 
 			if seq > c.maxSeq {
-				v := Validation{c.myPubKey,newLedger,seq}
+				v := Validation{c.myPubKey, newLedger, seq, nil}
 				v.Sign(c.myPrivKey)
-				broadcast(v)
+				broadcastValidation(v)
 				c.maxSeq = seq
 			}
 			c.start(newLedger)
@@ -208,75 +184,62 @@ func (c XRPLConsensus*) update()
 
 }
 
-func (c XRPLConsensus*) perferredLedger() common.Hash {
+func (c *XRPLConsensus) preferredLedger() common.Hash {
 
-	return nil
+	return c.prevLedger
 }
 
-func (c XRPLConsensus*) checkConsensus() bool
-{
+func (c *XRPLConsensus) checkConsensus() bool {
 	matching := 1
-	for p := range c.props
-	{
-	
-		bool mismatch = false
-		for txn := range p.transactions
-		{
-	
+	for _, prop := range c.props {
+
+		mismatch := false
+		for txn := range prop.transactions {
+
 			if _, ok := c.transactions[txn]; !ok {
 				mismatch = true
 				break
 			}
 		}
-		if !mismatch && len(c.transactions) == len(p.transactions) {
+		if !mismatch && len(c.transactions) == len(prop.transactions) {
 			matching++
 		}
 	}
-	return matching * 100 >= quorum * len(c.unl) 
+	return matching*100 >= quorum*len(c.unl)
 }
 
-
-
-func (c XRPLConsensus*) updatePosition()
-{
+func (c *XRPLConsensus) updatePosition() {
 	txns := make(map[common.Hash]int)
-	for v,p := range c.props
-	{
+	for _, p := range c.props {
 
-		for txn := p.transactions
-		{
+		for txn := range p.transactions {
 			txns[txn]++
 		}
 	}
 
 	thresh := thresholds[c.curRound]
 
-	for txn,sup := range txns
-	{
-		if sup * 100 < thresh
-		{
+	for txn, sup := range txns {
+		if sup*100 < thresh {
 			delete(txns, txn)
 		}
 	}
 
-	i := 0
-	c.transactions = make([]common.Hash,len(txns))
-	for txn := range txns
-	{
-		c.transactions[i] = txn
-		i++
+	c.transactions = make(map[common.Hash]bool, len(txns))
+	for txn := range txns {
+		c.transactions[txn] = true
 	}
 	c.curRound++
-	myProp := Proposal{myKey,c.prevLedger,c.transactions,c.curRound}
+	myProp := Proposal{c.myPubKey, c.prevLedger, c.transactions, c.curRound, nil}
 	myProp.Sign(c.myPrivKey)
 
-	broadcast(myProp)
+	broadcastProposal(myProp)
 }
 
-func broadcast(p Proposal) error {
+func broadcastProposal(p Proposal) error {
 	return nil
 }
 
-func broadcast(v Validation) error {
+func broadcastValidation(v Validation) error {
 	return nil
 }
