@@ -82,11 +82,17 @@ func (c *XRPLConsensus) receiveValidation(v Validation) {
 
 			count := len(c.vals[v.blockHash])
 
-			if count*100 > len(c.unl)*quorum {
+			if count*100 >= len(c.unl)*quorum {
 				c.validatedLedger = v.blockHash
 			}
 		}
 	}
+}
+
+func (c *XRPLConsensus) IsValidated(blockHash common.Hash) bool {
+
+	count := len(c.vals[blockHash])
+	return count*100 >= len(c.unl)*quorum
 }
 
 func (c *XRPLConsensus) receiveProposal(p Proposal) {
