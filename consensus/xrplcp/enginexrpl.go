@@ -76,7 +76,8 @@ func (xrp *XRPLEngine) FinalizeAndAssemble(chain consensus.ChainHeaderReader, he
 
 func (xrp *XRPLEngine) Seal(chain consensus.ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error {
 
-	// TODO this is the real work
+	xrp.Start(block.Hash())
+
 	return nil
 }
 func (xrp *XRPLEngine) SealHash(header *types.Header) (hash common.Hash) {

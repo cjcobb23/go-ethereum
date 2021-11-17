@@ -591,6 +591,8 @@ func (w *worker) taskLoop() {
 			w.pendingTasks[sealHash] = task
 			w.pendingMu.Unlock()
 
+			// CJ: at this point, the transactions should be finalized, so we just
+			// publish a validation, and return on the channel when the block is fully validated
 			if err := w.engine.Seal(w.chain, task.block, w.resultCh, stopCh); err != nil {
 				log.Warn("Block sealing failed", "err", err)
 			}
@@ -621,6 +623,7 @@ func (w *worker) resultLoop() {
 				hash     = block.Hash()
 			)
 			w.pendingMu.RLock()
+			// CJ: can't change the block inside Seal
 			task, exist := w.pendingTasks[sealhash]
 			w.pendingMu.RUnlock()
 			if !exist {
@@ -893,6 +896,7 @@ func (w *worker) commitTransactions(txs *types.TransactionsByPriceAndNonce, coin
 }
 
 // commitNewWork generates several new sealing tasks based on the parent block.
+// CJ: this appears to be the beginning of block creation
 func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) {
 	w.mu.RLock()
 	defer w.mu.RUnlock()
@@ -987,6 +991,9 @@ func (w *worker) commitNewWork(interrupt *int32, noempty bool, timestamp int64) 
 	}
 
 	// Fill the block with all available pending transactions.
+	// CJ: change this logic
+	// CJ: this should block until consensus determines transaction set. return
+	// the transaction set
 	pending, err := w.eth.TxPool().Pending(true)
 	if err != nil {
 		log.Error("Failed to fetch pending transactions", "err", err)

@@ -117,7 +117,7 @@ func (c *XRPLConsensus) receiveProposal(p Proposal) {
 	}
 }
 
-func (c *XRPLConsensus) start(l common.Hash) {
+func (c *XRPLConsensus) Start(l common.Hash) {
 	c.prevLedger = l
 	c.curRound = 0
 	c.transactions = c.pendingTransactions

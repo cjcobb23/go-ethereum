@@ -114,7 +114,14 @@ type Engine interface {
 	// Note, the method returns immediately and will send the result async. More
 	// than one result may also be returned depending on the consensus algorithm.
 	// CJ: Begin consensus for a particular block
+	// CJ: for us, this should initiate consensus, where our initial proposal is the input block
+	// However, the output block will likely be different. We will need to rerun the output block through
+	// the whole update flow, and then try to reseal it. When we seal, we should check internally whether
+	// we already came to consensus on the block
 	Seal(chain ChainHeaderReader, block *types.Block, results chan<- *types.Block, stop <-chan struct{}) error
+
+	// Get the transactions to be included in the block
+	GetConsensusTransactions(initial map[common.Address]types.Transactions, block *types.Block, stop <-chan struct{}) (map[common.Address]types.Transactions, error)
 
 	// SealHash returns the hash of a block prior to it being sealed.
 	SealHash(header *types.Header) common.Hash
